@@ -1,0 +1,38 @@
+# Java / Maven
+backend/target/
+*.class
+
+# Node / Vue
+frontend/node_modules/
+frontend/dist/
+
+# Python
+python-service/.venv/
+python-service/models/*.task
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Runtime data and local secrets
+runtime-data/
+backend/data/
+response*.json
+backend-response.json
+.env
+*.local.yml
+
+# Generated documents and visual inspection artifacts
+*.docx
+*.pdf
+*.png
+*.jpg
+*.jpeg
+build_report.cjs
+migrate_to_template.py
+
+# IDE / OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
