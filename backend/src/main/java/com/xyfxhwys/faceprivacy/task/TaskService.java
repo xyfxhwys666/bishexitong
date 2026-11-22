@@ -3,7 +3,7 @@ package com.xyfxhwys.faceprivacy.task;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xyfxhwys.faceprivacy.auth.AuthSessionService;
-import com.xyfxhwys.faceprivacy.auth.UnauthorizedException;
+import com.xyfxhwys.faceprivacy.auth.ForbiddenException;
 import com.xyfxhwys.faceprivacy.service.PythonImageService;
 import java.io.IOException;
 import java.util.LinkedHashMap;
@@ -171,7 +171,7 @@ public class TaskService {
 
     public void assertAccess(ProcessingTask task, AuthSessionService.Session session) {
         if (!canAccess(task, session)) {
-            throw new UnauthorizedException("无权访问该任务");
+            throw new ForbiddenException("无权访问该任务");
         }
     }
 

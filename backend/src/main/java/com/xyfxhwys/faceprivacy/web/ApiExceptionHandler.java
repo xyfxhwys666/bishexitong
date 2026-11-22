@@ -1,5 +1,6 @@
 package com.xyfxhwys.faceprivacy.web;
 
+import com.xyfxhwys.faceprivacy.auth.ForbiddenException;
 import com.xyfxhwys.faceprivacy.auth.UnauthorizedException;
 import com.xyfxhwys.faceprivacy.task.TaskNotFoundException;
 import com.xyfxhwys.faceprivacy.task.TaskProcessingException;
@@ -16,6 +17,11 @@ public class ApiExceptionHandler {
     @ExceptionHandler(UnauthorizedException.class)
     public ResponseEntity<Map<String, String>> unauthorized(UnauthorizedException ex) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("message", ex.getMessage()));
+    }
+
+    @ExceptionHandler(ForbiddenException.class)
+    public ResponseEntity<Map<String, String>> forbidden(ForbiddenException ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", ex.getMessage()));
     }
 
     @ExceptionHandler(TaskNotFoundException.class)

@@ -14,6 +14,8 @@ const error = ref('')
 const result = ref(null)
 const history = ref([])
 const historyLoading = ref(false)
+const auditLogs = ref([])
+const auditLoading = ref(false)
 const comparisonResults = ref([])
 const statistics = ref({
   total: 0,
@@ -58,6 +60,14 @@ const statusLabels = {
 const roleLabels = {
   ADMIN: '管理员',
   USER: '普通用户',
+}
+
+const auditActionLabels = {
+  LOGIN: '登录系统',
+  LOGOUT: '退出系统',
+  CREATE_TASK: '提交任务',
+  CREATE_BATCH: '提交批量任务',
+  RETRY_TASK: '重试任务',
 }
 
 const resultImage = computed(() => {
@@ -149,6 +159,10 @@ function roleLabel(value) {
   return roleLabels[value] || value
 }
 
+function auditActionLabel(value) {
+  return auditActionLabels[value] || value
+}
+
 function clearAuth() {
   auth.value = null
   sessionStorage.removeItem('facePrivacySession')
@@ -185,6 +199,7 @@ async function login() {
     auth.value = { token: payload.token, ...payload.user }
     sessionStorage.setItem('facePrivacySession', JSON.stringify(auth.value))
     await loadHistory()
+    await loadAuditLogs()
   } catch (err) {
     loginError.value = err.message || '登录失败，请检查账号和密码'
   } finally {
@@ -204,6 +219,7 @@ async function initializeAuth() {
     const user = await response.json()
     auth.value = { token: session.token, ...user }
     await loadHistory()
+    await loadAuditLogs()
   } catch {
     sessionStorage.removeItem('facePrivacySession')
   }
@@ -240,6 +256,23 @@ async function loadHistory() {
     error.value = err.message || '历史任务加载失败'
   } finally {
     historyLoading.value = false
+  }
+}
+
+async function loadAuditLogs() {
+  if (auth.value?.role !== 'ADMIN') {
+    auditLogs.value = []
+    return
+  }
+  auditLoading.value = true
+  try {
+    const response = await apiFetch('/api/v1/audit-logs')
+    if (!response.ok) throw new Error('操作日志加载失败')
+    auditLogs.value = await response.json()
+  } catch (err) {
+    error.value = err.message || '操作日志加载失败'
+  } finally {
+    auditLoading.value = false
   }
 }
 
@@ -303,6 +336,7 @@ async function retryTask() {
     if (!response.ok) throw new Error(payload.message || '重试提交失败')
     result.value = payload
     startPolling([payload.id])
+    await loadAuditLogs()
   } catch (err) {
     error.value = err.message || '重试提交失败'
   } finally {
@@ -336,6 +370,7 @@ async function compareStrategies() {
     comparisonResults.value = submissions
     result.value = submissions[0]
     await loadHistory()
+    await loadAuditLogs()
     startPolling(submissions.map((task) => task.id), 'comparison')
   } catch (err) {
     error.value = err.message || '对比实验提交失败'
@@ -445,6 +480,7 @@ async function processImage() {
     const tasks = isBatch ? payload.tasks : [payload]
     result.value = tasks[0]
     await loadHistory()
+    await loadAuditLogs()
     startPolling(tasks.map((task) => task.id))
   } catch (err) {
     error.value = err.message || '处理失败，请检查后端和 Python 服务是否启动'
@@ -732,6 +768,29 @@ onUnmounted(stopPolling)
         </div>
       </div>
       <p v-if="!history.length" class="history-empty">完成第一张图片后，任务记录会保存在这里。</p>
+    </section>
+
+    <section v-if="auth?.role === 'ADMIN'" class="audit-section">
+      <div class="audit-heading">
+        <div>
+          <div class="section-label">操作审计</div>
+          <h2>最近操作记录</h2>
+        </div>
+        <span class="history-count">{{ auditLoading ? '加载中…' : `${auditLogs.length} 条记录` }}</span>
+      </div>
+      <div v-if="auditLogs.length" class="audit-list">
+        <div v-for="log in auditLogs" :key="log.id" class="audit-row">
+          <span class="audit-dot"></span>
+          <div class="audit-main">
+            <strong>{{ auditActionLabel(log.action) }}</strong>
+            <small>{{ log.username }} · {{ formatDate(log.createdAt) }}</small>
+          </div>
+          <span class="audit-target">{{ log.targetId ? `${log.targetType} #${log.targetId}` : log.targetType || '系统' }}</span>
+          <span class="audit-detail">{{ log.detail || '—' }}</span>
+        </div>
+      </div>
+      <p v-else class="history-empty">暂无操作记录。</p>
+      <p class="audit-note">审计日志只保存账号、操作类型和任务元数据，不保存原始人脸图片。</p>
     </section>
 
     <section class="method-section">

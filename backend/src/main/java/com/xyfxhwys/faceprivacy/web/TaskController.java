@@ -1,5 +1,6 @@
 package com.xyfxhwys.faceprivacy.web;
 
+import com.xyfxhwys.faceprivacy.audit.AuditLogService;
 import com.xyfxhwys.faceprivacy.auth.AuthSessionService;
 import com.xyfxhwys.faceprivacy.task.TaskService;
 import com.xyfxhwys.faceprivacy.task.TaskSummary;
@@ -31,15 +32,18 @@ public class TaskController {
     private final TaskService taskService;
     private final TaskQueueService taskQueueService;
     private final AuthSessionService authSessionService;
+    private final AuditLogService auditLogService;
 
     public TaskController(
             TaskService taskService,
             TaskQueueService taskQueueService,
-            AuthSessionService authSessionService
+            AuthSessionService authSessionService,
+            AuditLogService auditLogService
     ) {
         this.taskService = taskService;
         this.taskQueueService = taskQueueService;
         this.authSessionService = authSessionService;
+        this.auditLogService = auditLogService;
     }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -54,8 +58,11 @@ public class TaskController {
             HttpServletRequest request
     ) {
         AuthSessionService.Session session = authSessionService.require(request);
+        TaskSummary summary = taskQueueService.submit(file, strategy, privacyLevel, priority, session.username());
+        auditLogService.record(session, "CREATE_TASK", "TASK", String.valueOf(summary.id()),
+                "strategy=" + strategy + ", privacyLevel=" + privacyLevel + ", priority=" + priority);
         return ResponseEntity.status(HttpStatus.ACCEPTED)
-                .body(taskQueueService.submit(file, strategy, privacyLevel, priority, session.username()));
+                .body(summary);
     }
 
     @PostMapping(value = "/batch", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -70,8 +77,11 @@ public class TaskController {
             HttpServletRequest request
     ) {
         AuthSessionService.Session session = authSessionService.require(request);
+        BatchView batch = taskQueueService.submitBatch(files, strategy, privacyLevel, priority, session.username());
+        auditLogService.record(session, "CREATE_BATCH", "BATCH", null,
+                "count=" + batch.total() + ", strategy=" + strategy + ", privacyLevel=" + privacyLevel);
         return ResponseEntity.status(HttpStatus.ACCEPTED)
-                .body(taskQueueService.submitBatch(files, strategy, privacyLevel, priority, session.username()));
+                .body(batch);
     }
 
     @GetMapping
@@ -91,7 +101,10 @@ public class TaskController {
 
     @PostMapping("/{id}/retry")
     public ResponseEntity<TaskSummary> retry(@PathVariable long id, HttpServletRequest request) {
+        AuthSessionService.Session session = authSessionService.require(request);
+        TaskSummary summary = taskQueueService.retry(id, session);
+        auditLogService.record(session, "RETRY_TASK", "TASK", String.valueOf(id), "任务重新排队");
         return ResponseEntity.status(HttpStatus.ACCEPTED)
-                .body(taskQueueService.retry(id, authSessionService.require(request)));
+                .body(summary);
     }
 }

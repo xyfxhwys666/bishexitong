@@ -1,5 +1,6 @@
 package com.xyfxhwys.faceprivacy.auth;
 
+import com.xyfxhwys.faceprivacy.audit.AuditLogService;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
@@ -21,11 +22,13 @@ public class AuthSessionService {
     private static final long SESSION_SECONDS = Duration.ofHours(8).toSeconds();
 
     private final UserAccountRepository repository;
+    private final AuditLogService auditLogService;
     private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
     private final Map<String, Session> sessions = new ConcurrentHashMap<>();
 
-    public AuthSessionService(UserAccountRepository repository) {
+    public AuthSessionService(UserAccountRepository repository, AuditLogService auditLogService) {
         this.repository = repository;
+        this.auditLogService = auditLogService;
     }
 
     @PostConstruct
@@ -44,6 +47,7 @@ public class AuthSessionService {
         String token = UUID.randomUUID().toString();
         Session session = new Session(normalizedUsername, account.getRole(), Instant.now().plusSeconds(SESSION_SECONDS));
         sessions.put(token, session);
+        auditLogService.record(session, "LOGIN", "AUTH", null, "用户登录");
         return new LoginView(token, SESSION_SECONDS, LoginView.UserView.from(session));
     }
 
@@ -64,7 +68,11 @@ public class AuthSessionService {
     public void logout(HttpServletRequest request) {
         String authorization = request.getHeader("Authorization");
         if (authorization != null && authorization.startsWith("Bearer ")) {
-            sessions.remove(authorization.substring("Bearer ".length()).trim());
+            String token = authorization.substring("Bearer ".length()).trim();
+            Session session = sessions.remove(token);
+            if (session != null) {
+                auditLogService.record(session, "LOGOUT", "AUTH", null, "用户退出登录");
+            }
         }
     }
 
