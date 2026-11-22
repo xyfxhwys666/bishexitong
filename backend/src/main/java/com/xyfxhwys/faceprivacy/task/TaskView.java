@@ -5,6 +5,7 @@ import java.time.Instant;
 public record TaskView(
         Long id,
         String originalFilename,
+        String ownerUsername,
         String strategy,
         String appliedStrategy,
         String privacyLevel,
@@ -32,6 +33,7 @@ public record TaskView(
         return new TaskView(
                 task.getId(),
                 task.getOriginalFilename(),
+                task.getOwnerUsername(),
                 task.getStrategy(),
                 task.getAppliedStrategy(),
                 task.getPrivacyLevel(),

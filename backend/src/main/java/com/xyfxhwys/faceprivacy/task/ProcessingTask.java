@@ -21,6 +21,9 @@ public class ProcessingTask {
     @Column(nullable = false, length = 255)
     private String originalFilename;
 
+    @Column(length = 64)
+    private String ownerUsername;
+
     @Column(nullable = false, length = 20)
     private String strategy;
 
@@ -67,7 +70,18 @@ public class ProcessingTask {
     }
 
     public ProcessingTask(String originalFilename, String strategy, String privacyLevel, String priority) {
+        this(originalFilename, strategy, privacyLevel, priority, null);
+    }
+
+    public ProcessingTask(
+            String originalFilename,
+            String strategy,
+            String privacyLevel,
+            String priority,
+            String ownerUsername
+    ) {
         this.originalFilename = originalFilename;
+        this.ownerUsername = ownerUsername;
         this.strategy = strategy;
         this.appliedStrategy = "auto".equals(strategy) ? null : strategy;
         this.privacyLevel = privacyLevel;
@@ -123,6 +137,7 @@ public class ProcessingTask {
 
     public Long getId() { return id; }
     public String getOriginalFilename() { return originalFilename; }
+    public String getOwnerUsername() { return ownerUsername; }
     public String getStrategy() { return strategy; }
     public String getAppliedStrategy() { return appliedStrategy == null ? strategy : appliedStrategy; }
     public String getPrivacyLevel() { return privacyLevel; }

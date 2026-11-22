@@ -5,6 +5,7 @@ import java.time.Instant;
 public record TaskSummary(
         Long id,
         String originalFilename,
+        String ownerUsername,
         String strategy,
         String appliedStrategy,
         String privacyLevel,
@@ -22,6 +23,7 @@ public record TaskSummary(
         return new TaskSummary(
                 view.id(),
                 view.originalFilename(),
+                view.ownerUsername(),
                 view.strategy(),
                 view.appliedStrategy(),
                 view.privacyLevel(),

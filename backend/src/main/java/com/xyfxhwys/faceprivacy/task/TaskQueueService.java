@@ -1,5 +1,6 @@
 package com.xyfxhwys.faceprivacy.task;
 
+import com.xyfxhwys.faceprivacy.auth.AuthSessionService;
 import jakarta.annotation.PreDestroy;
 import java.io.IOException;
 import java.util.List;
@@ -42,6 +43,16 @@ public class TaskQueueService {
             String privacyLevel,
             String priority
     ) {
+        return submit(file, strategy, privacyLevel, priority, null);
+    }
+
+    public TaskSummary submit(
+            MultipartFile file,
+            String strategy,
+            String privacyLevel,
+            String priority,
+            String ownerUsername
+    ) {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("file is empty");
         }
@@ -51,7 +62,7 @@ public class TaskQueueService {
                 throw new IllegalArgumentException("image size must be at most 10 MB");
             }
             String filename = file.getOriginalFilename() == null ? "upload.jpg" : file.getOriginalFilename();
-            ProcessingTask task = taskService.createQueued(filename, strategy, privacyLevel, priority);
+            ProcessingTask task = taskService.createQueued(filename, strategy, privacyLevel, priority, ownerUsername);
             inputImages.put(task.getId(), raw);
             enqueue(task);
             return TaskSummary.from(task);
@@ -66,6 +77,16 @@ public class TaskQueueService {
             String privacyLevel,
             String priority
     ) {
+        return submitBatch(files, strategy, privacyLevel, priority, null);
+    }
+
+    public BatchView submitBatch(
+            List<MultipartFile> files,
+            String strategy,
+            String privacyLevel,
+            String priority,
+            String ownerUsername
+    ) {
         if (files == null || files.isEmpty()) {
             throw new IllegalArgumentException("at least one image is required");
         }
@@ -73,13 +94,20 @@ public class TaskQueueService {
             throw new IllegalArgumentException("a batch can contain at most " + MAX_BATCH_SIZE + " images");
         }
         List<TaskSummary> tasks = files.stream()
-                .map(file -> submit(file, strategy, privacyLevel, priority))
+                .map(file -> submit(file, strategy, privacyLevel, priority, ownerUsername))
                 .toList();
         return new BatchView(tasks.size(), tasks);
     }
 
     public TaskSummary retry(long id) {
+        return retry(id, null);
+    }
+
+    public TaskSummary retry(long id, AuthSessionService.Session session) {
         ProcessingTask task = taskService.findEntity(id);
+        if (session != null) {
+            taskService.assertAccess(task, session);
+        }
         if (!"FAILED".equals(task.getStatus())) {
             throw new IllegalArgumentException("only failed tasks can be retried");
         }

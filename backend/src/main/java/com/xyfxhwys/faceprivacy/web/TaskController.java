@@ -1,5 +1,6 @@
 package com.xyfxhwys.faceprivacy.web;
 
+import com.xyfxhwys.faceprivacy.auth.AuthSessionService;
 import com.xyfxhwys.faceprivacy.task.TaskService;
 import com.xyfxhwys.faceprivacy.task.TaskSummary;
 import com.xyfxhwys.faceprivacy.task.BatchView;
@@ -7,6 +8,7 @@ import com.xyfxhwys.faceprivacy.task.TaskQueueService;
 import com.xyfxhwys.faceprivacy.task.TaskView;
 import com.xyfxhwys.faceprivacy.task.TaskStatistics;
 import jakarta.validation.constraints.Pattern;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 
 import org.springframework.http.MediaType;
@@ -28,10 +30,16 @@ public class TaskController {
 
     private final TaskService taskService;
     private final TaskQueueService taskQueueService;
+    private final AuthSessionService authSessionService;
 
-    public TaskController(TaskService taskService, TaskQueueService taskQueueService) {
+    public TaskController(
+            TaskService taskService,
+            TaskQueueService taskQueueService,
+            AuthSessionService authSessionService
+    ) {
         this.taskService = taskService;
         this.taskQueueService = taskQueueService;
+        this.authSessionService = authSessionService;
     }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -42,10 +50,12 @@ public class TaskController {
             @RequestParam(name = "privacyLevel", defaultValue = "standard")
             @Pattern(regexp = "light|standard|strict", message = "privacyLevel must be light, standard or strict") String privacyLevel,
             @RequestParam(defaultValue = "normal")
-            @Pattern(regexp = "low|normal|high", message = "priority must be low, normal or high") String priority
+            @Pattern(regexp = "low|normal|high", message = "priority must be low, normal or high") String priority,
+            HttpServletRequest request
     ) {
+        AuthSessionService.Session session = authSessionService.require(request);
         return ResponseEntity.status(HttpStatus.ACCEPTED)
-                .body(taskQueueService.submit(file, strategy, privacyLevel, priority));
+                .body(taskQueueService.submit(file, strategy, privacyLevel, priority, session.username()));
     }
 
     @PostMapping(value = "/batch", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -56,29 +66,32 @@ public class TaskController {
             @RequestParam(name = "privacyLevel", defaultValue = "standard")
             @Pattern(regexp = "light|standard|strict", message = "privacyLevel must be light, standard or strict") String privacyLevel,
             @RequestParam(defaultValue = "normal")
-            @Pattern(regexp = "low|normal|high", message = "priority must be low, normal or high") String priority
+            @Pattern(regexp = "low|normal|high", message = "priority must be low, normal or high") String priority,
+            HttpServletRequest request
     ) {
+        AuthSessionService.Session session = authSessionService.require(request);
         return ResponseEntity.status(HttpStatus.ACCEPTED)
-                .body(taskQueueService.submitBatch(files, strategy, privacyLevel, priority));
+                .body(taskQueueService.submitBatch(files, strategy, privacyLevel, priority, session.username()));
     }
 
     @GetMapping
-    public List<TaskSummary> recent() {
-        return taskService.recent();
+    public List<TaskSummary> recent(HttpServletRequest request) {
+        return taskService.recent(authSessionService.require(request));
     }
 
     @GetMapping("/stats")
-    public TaskStatistics statistics() {
-        return taskService.statistics();
+    public TaskStatistics statistics(HttpServletRequest request) {
+        return taskService.statistics(authSessionService.require(request));
     }
 
     @GetMapping("/{id}")
-    public TaskView find(@PathVariable long id) {
-        return taskService.find(id);
+    public TaskView find(@PathVariable long id, HttpServletRequest request) {
+        return taskService.find(id, authSessionService.require(request));
     }
 
     @PostMapping("/{id}/retry")
-    public ResponseEntity<TaskSummary> retry(@PathVariable long id) {
-        return ResponseEntity.status(HttpStatus.ACCEPTED).body(taskQueueService.retry(id));
+    public ResponseEntity<TaskSummary> retry(@PathVariable long id, HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.ACCEPTED)
+                .body(taskQueueService.retry(id, authSessionService.require(request)));
     }
 }

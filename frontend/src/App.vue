@@ -2,6 +2,10 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 
 const files = ref([])
+const auth = ref(null)
+const loginForm = ref({ username: 'student', password: 'student123' })
+const loginLoading = ref(false)
+const loginError = ref('')
 const strategy = ref('mosaic')
 const privacyLevel = ref('standard')
 const priority = ref('normal')
@@ -49,6 +53,11 @@ const statusLabels = {
   PROCESSING: '处理中',
   COMPLETED: '已完成',
   FAILED: '处理失败',
+}
+
+const roleLabels = {
+  ADMIN: '管理员',
+  USER: '普通用户',
 }
 
 const resultImage = computed(() => {
@@ -136,9 +145,83 @@ function escapeHtml(value) {
   }[character]))
 }
 
+function roleLabel(value) {
+  return roleLabels[value] || value
+}
+
+function clearAuth() {
+  auth.value = null
+  sessionStorage.removeItem('facePrivacySession')
+  stopPolling()
+  history.value = []
+  result.value = null
+  comparisonResults.value = []
+}
+
+async function apiFetch(input, options = {}) {
+  const headers = new Headers(options.headers || {})
+  if (auth.value?.token) {
+    headers.set('Authorization', `Bearer ${auth.value.token}`)
+  }
+  const response = await fetch(input, { ...options, headers })
+  if (response.status === 401 && auth.value) {
+    clearAuth()
+    loginError.value = '登录已过期，请重新登录'
+  }
+  return response
+}
+
+async function login() {
+  loginLoading.value = true
+  loginError.value = ''
+  try {
+    const response = await fetch('/api/v1/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(loginForm.value),
+    })
+    const payload = await response.json()
+    if (!response.ok) throw new Error(payload.message || '登录失败')
+    auth.value = { token: payload.token, ...payload.user }
+    sessionStorage.setItem('facePrivacySession', JSON.stringify(auth.value))
+    await loadHistory()
+  } catch (err) {
+    loginError.value = err.message || '登录失败，请检查账号和密码'
+  } finally {
+    loginLoading.value = false
+  }
+}
+
+async function initializeAuth() {
+  const saved = sessionStorage.getItem('facePrivacySession')
+  if (!saved) return
+  try {
+    const session = JSON.parse(saved)
+    const response = await fetch('/api/v1/auth/me', {
+      headers: { Authorization: `Bearer ${session.token}` },
+    })
+    if (!response.ok) throw new Error('session expired')
+    const user = await response.json()
+    auth.value = { token: session.token, ...user }
+    await loadHistory()
+  } catch {
+    sessionStorage.removeItem('facePrivacySession')
+  }
+}
+
+async function logout() {
+  if (auth.value?.token) {
+    await fetch('/api/v1/auth/logout', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${auth.value.token}` },
+    })
+  }
+  clearAuth()
+}
+
 async function loadStatistics() {
   try {
-    const response = await fetch('/api/v1/tasks/stats')
+    const response = await apiFetch('/api/v1/tasks/stats')
     if (!response.ok) throw new Error('统计数据加载失败')
     statistics.value = await response.json()
   } catch (err) {
@@ -149,7 +232,7 @@ async function loadStatistics() {
 async function loadHistory() {
   historyLoading.value = true
   try {
-    const response = await fetch('/api/v1/tasks')
+    const response = await apiFetch('/api/v1/tasks')
     if (!response.ok) throw new Error('历史任务加载失败')
     history.value = await response.json()
     await loadStatistics()
@@ -164,7 +247,7 @@ async function openHistory(task) {
   error.value = ''
   comparisonResults.value = []
   try {
-    const response = await fetch(`/api/v1/tasks/${task.id}`)
+    const response = await apiFetch(`/api/v1/tasks/${task.id}`)
     const payload = await response.json()
     if (!response.ok) throw new Error(payload.message || '任务详情加载失败')
     result.value = payload
@@ -186,7 +269,7 @@ async function pollTasks() {
   if (!pollingIds.value.length) return
   try {
     const tasks = await Promise.all(pollingIds.value.map(async (id) => {
-      const response = await fetch(`/api/v1/tasks/${id}`)
+      const response = await apiFetch(`/api/v1/tasks/${id}`)
       if (!response.ok) throw new Error('任务状态查询失败')
       return response.json()
     }))
@@ -215,7 +298,7 @@ async function retryTask() {
   loading.value = true
   error.value = ''
   try {
-    const response = await fetch(`/api/v1/tasks/${result.value.id}/retry`, { method: 'POST' })
+    const response = await apiFetch(`/api/v1/tasks/${result.value.id}/retry`, { method: 'POST' })
     const payload = await response.json()
     if (!response.ok) throw new Error(payload.message || '重试提交失败')
     result.value = payload
@@ -245,7 +328,7 @@ async function compareStrategies() {
       form.append('strategy', selectedStrategy)
       form.append('privacyLevel', privacyLevel.value)
       form.append('priority', 'high')
-      const response = await fetch('/api/v1/tasks', { method: 'POST', body: form })
+      const response = await apiFetch('/api/v1/tasks', { method: 'POST', body: form })
       const payload = await response.json()
       if (!response.ok) throw new Error(payload.message || `${labelForStrategy(selectedStrategy)}提交失败`)
       return payload
@@ -356,7 +439,7 @@ async function processImage() {
   form.append('privacyLevel', privacyLevel.value)
   form.append('priority', priority.value)
   try {
-    const response = await fetch(endpoint, { method: 'POST', body: form })
+    const response = await apiFetch(endpoint, { method: 'POST', body: form })
     const payload = await response.json()
     if (!response.ok) throw new Error(payload.detail || payload.message || '处理失败')
     const tasks = isBatch ? payload.tasks : [payload]
@@ -370,12 +453,44 @@ async function processImage() {
   }
 }
 
-onMounted(loadHistory)
+onMounted(initializeAuth)
 onUnmounted(stopPolling)
 </script>
 
 <template>
-  <main class="page-shell">
+  <div class="app-root">
+    <section v-if="!auth" class="login-screen">
+      <div class="login-panel">
+        <div class="brand-line">
+          <span class="brand-mark">FP</span>
+          <p class="eyebrow">FACE PRIVACY WORKBENCH</p>
+        </div>
+        <h1>进入隐私脱敏工作台</h1>
+        <p class="login-subtitle">登录后管理人脸图片处理任务与实验记录。</p>
+        <form class="login-form" @submit.prevent="login">
+          <label>
+            <span>用户名</span>
+            <input v-model="loginForm.username" autocomplete="username" placeholder="输入用户名" />
+          </label>
+          <label>
+            <span>密码</span>
+            <input v-model="loginForm.password" type="password" autocomplete="current-password" placeholder="输入密码" />
+          </label>
+          <p v-if="loginError" class="login-error">{{ loginError }}</p>
+          <button class="primary-button login-button" type="submit" :disabled="loginLoading">
+            {{ loginLoading ? '登录中…' : '进入系统' }}
+            <span aria-hidden="true">→</span>
+          </button>
+        </form>
+        <div class="demo-account">
+          <span>演示账号</span>
+          <code>student / student123</code>
+          <code>admin / admin123</code>
+        </div>
+      </div>
+    </section>
+
+  <main v-else class="page-shell">
     <header class="topbar">
       <div>
         <div class="brand-line">
@@ -385,7 +500,11 @@ onUnmounted(stopPolling)
         <h1>人脸图像隐私脱敏</h1>
         <p class="subtitle">从人脸检测到策略决策，再到效果评估的智能处理工作台。</p>
       </div>
-      <span class="status-chip"><i></i> 答辩演示模式</span>
+      <div class="topbar-actions">
+        <span class="status-chip"><i></i> 答辩演示模式</span>
+        <span class="user-chip">{{ auth.username }} · {{ roleLabel(auth.role) }}</span>
+        <button class="logout-button" type="button" @click="logout">退出登录</button>
+      </div>
     </header>
 
     <section class="overview-grid" aria-label="系统概览">
@@ -625,4 +744,5 @@ onUnmounted(stopPolling)
       </div>
     </section>
   </main>
+  </div>
 </template>

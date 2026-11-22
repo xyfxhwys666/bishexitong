@@ -1,5 +1,6 @@
 package com.xyfxhwys.faceprivacy.web;
 
+import com.xyfxhwys.faceprivacy.auth.UnauthorizedException;
 import com.xyfxhwys.faceprivacy.task.TaskNotFoundException;
 import com.xyfxhwys.faceprivacy.task.TaskProcessingException;
 import java.util.Map;
@@ -11,6 +12,11 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
+
+    @ExceptionHandler(UnauthorizedException.class)
+    public ResponseEntity<Map<String, String>> unauthorized(UnauthorizedException ex) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("message", ex.getMessage()));
+    }
 
     @ExceptionHandler(TaskNotFoundException.class)
     public ResponseEntity<Map<String, String>> notFound(TaskNotFoundException ex) {

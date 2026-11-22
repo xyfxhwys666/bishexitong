@@ -2,11 +2,14 @@ package com.xyfxhwys.faceprivacy.task;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.xyfxhwys.faceprivacy.auth.AuthSessionService;
+import com.xyfxhwys.faceprivacy.auth.UnauthorizedException;
 import com.xyfxhwys.faceprivacy.service.PythonImageService;
 import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -47,6 +50,16 @@ public class TaskService {
         return repository.save(new ProcessingTask(filename, strategy, privacyLevel, priority));
     }
 
+    public ProcessingTask createQueued(
+            String filename,
+            String strategy,
+            String privacyLevel,
+            String priority,
+            String ownerUsername
+    ) {
+        return repository.save(new ProcessingTask(filename, strategy, privacyLevel, priority, ownerUsername));
+    }
+
     public void execute(ProcessingTask task, byte[] rawImage) {
         try {
             JsonNode result = objectMapper.readTree(
@@ -79,14 +92,39 @@ public class TaskService {
         return repository.findTop20ByOrderByCreatedAtDesc().stream().map(TaskSummary::from).toList();
     }
 
+    public List<TaskSummary> recent(AuthSessionService.Session session) {
+        return repository.findAll().stream()
+                .filter(task -> canAccess(task, session))
+                .sorted((left, right) -> right.getCreatedAt().compareTo(left.getCreatedAt()))
+                .limit(20)
+                .map(TaskSummary::from)
+                .toList();
+    }
+
     public TaskView find(long id) {
         return repository.findById(id)
                 .map(TaskView::from)
                 .orElseThrow(() -> new TaskNotFoundException(id));
     }
 
+    public TaskView find(long id, AuthSessionService.Session session) {
+        ProcessingTask task = findEntity(id);
+        assertAccess(task, session);
+        return TaskView.from(task);
+    }
+
     public TaskStatistics statistics() {
-        List<ProcessingTask> tasks = repository.findAll();
+        return statistics(repository.findAll());
+    }
+
+    public TaskStatistics statistics(AuthSessionService.Session session) {
+        List<ProcessingTask> tasks = repository.findAll().stream()
+                .filter(task -> canAccess(task, session))
+                .toList();
+        return statistics(tasks);
+    }
+
+    private TaskStatistics statistics(List<ProcessingTask> tasks) {
         long completed = tasks.stream().filter(task -> "COMPLETED".equals(task.getStatus())).count();
         long processing = tasks.stream()
                 .filter(task -> "QUEUED".equals(task.getStatus()) || "PROCESSING".equals(task.getStatus()))
@@ -129,6 +167,16 @@ public class TaskService {
 
     public ProcessingTask save(ProcessingTask task) {
         return repository.save(task);
+    }
+
+    public void assertAccess(ProcessingTask task, AuthSessionService.Session session) {
+        if (!canAccess(task, session)) {
+            throw new UnauthorizedException("无权访问该任务");
+        }
+    }
+
+    private boolean canAccess(ProcessingTask task, AuthSessionService.Session session) {
+        return session.isAdmin() || Objects.equals(task.getOwnerUsername(), session.username());
     }
 
     private String userMessage(Exception ex) {
