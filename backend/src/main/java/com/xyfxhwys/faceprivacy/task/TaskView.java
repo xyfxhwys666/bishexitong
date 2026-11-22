@@ -20,13 +20,27 @@ public record TaskView(
         Instant createdAt,
         String errorMessage
 ) {
-    public record Metrics(Double psnr, Double ssim, Double elapsedMs) {}
+    public record Metrics(
+            Double psnr,
+            Double ssim,
+            Double elapsedMs,
+            Double faceRoiPsnr,
+            Double faceRoiSsim,
+            Double faceAreaRatio
+    ) {}
     public record PrivacyEvaluation(Integer detectedFacesAfter, Double detectionSuppressionRate, boolean proxyMetric) {}
 
     public static TaskView from(ProcessingTask task) {
         Metrics metrics = task.getPsnr() == null
                 ? null
-                : new Metrics(task.getPsnr(), task.getSsim(), task.getElapsedMs());
+                : new Metrics(
+                        task.getPsnr(),
+                        task.getSsim(),
+                        task.getElapsedMs(),
+                        task.getFaceRoiPsnr(),
+                        task.getFaceRoiSsim(),
+                        task.getFaceAreaRatio()
+                );
         PrivacyEvaluation privacyEvaluation = task.getDetectedFacesAfter() == null
                 ? null
                 : new PrivacyEvaluation(task.getDetectedFacesAfter(), task.getDetectionSuppressionRate(), true);

@@ -71,11 +71,17 @@ public class TaskService {
                     ? objectMapper.writeValueAsString(result.path("agentTrace"))
                     : null;
             JsonNode privacyEvaluation = result.path("privacyEvaluation");
+            Double faceRoiPsnr = metrics.hasNonNull("faceRoiPsnr") ? metrics.path("faceRoiPsnr").asDouble() : null;
+            Double faceRoiSsim = metrics.hasNonNull("faceRoiSsim") ? metrics.path("faceRoiSsim").asDouble() : null;
+            Double faceAreaRatio = metrics.hasNonNull("faceAreaRatio") ? metrics.path("faceAreaRatio").asDouble() : null;
             task.complete(
                     result.path("faceCount").asInt(),
                     metrics.path("psnr").asDouble(),
                     metrics.path("ssim").asDouble(),
                     metrics.path("elapsedMs").asDouble(),
+                    faceRoiPsnr,
+                    faceRoiSsim,
+                    faceAreaRatio,
                     result.path("imageBase64").asText(),
                     appliedStrategy,
                     agentTrace,

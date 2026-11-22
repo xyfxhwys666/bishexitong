@@ -392,7 +392,7 @@ async function compareStrategies() {
 function downloadComparisonCsv() {
   if (!comparisonResults.value.length) return
   const rows = [
-    ['任务编号', '策略', '隐私等级', '人脸数', 'PSNR(dB)', 'SSIM', '耗时(ms)', '检测抑制率', '状态'],
+    ['任务编号', '策略', '隐私等级', '人脸数', '全图PSNR(dB)', '全图SSIM', '人脸区PSNR(dB)', '人脸区SSIM', '人脸区占比', '耗时(ms)', '检测抑制率', '状态'],
     ...comparisonResults.value.map((task) => [
       task.id,
       labelForStrategy(task.appliedStrategy || task.strategy),
@@ -400,6 +400,9 @@ function downloadComparisonCsv() {
       task.faceCount ?? '',
       task.metrics?.psnr?.toFixed(4) ?? '',
       task.metrics?.ssim?.toFixed(6) ?? '',
+      task.metrics?.faceRoiPsnr?.toFixed(4) ?? '',
+      task.metrics?.faceRoiSsim?.toFixed(6) ?? '',
+      task.metrics?.faceAreaRatio == null ? '' : `${(task.metrics.faceAreaRatio * 100).toFixed(2)}%`,
       task.metrics?.elapsedMs ?? '',
       task.privacyEvaluation ? `${(task.privacyEvaluation.detectionSuppressionRate * 100).toFixed(2)}%` : '',
       labelForStatus(task.status),
@@ -456,7 +459,9 @@ function openReport() {
       <tr><th>实际策略</th><td>${escapeHtml(labelForStrategy(task.appliedStrategy || task.strategy))}</td><th>隐私等级</th><td>${escapeHtml(labelForPrivacy(task.privacyLevel))}</td></tr>
       <tr><th>检测人脸数</th><td>${escapeHtml(task.faceCount)}</td><th>处理耗时</th><td>${escapeHtml(metrics.elapsedMs)} ms</td></tr>
       <tr><th>PSNR</th><td>${escapeHtml(Number(metrics.psnr).toFixed(4))} dB</td><th>SSIM</th><td>${escapeHtml(Number(metrics.ssim).toFixed(6))}</td></tr>
-      <tr><th>处理后检测数</th><td>${escapeHtml(evaluation.detectedFacesAfter ?? '—')}</td><th>检测抑制率</th><td>${evaluation.detectionSuppressionRate == null ? '—' : `${(evaluation.detectionSuppressionRate * 100).toFixed(2)}%`}</td></tr></tbody></table>
+      <tr><th>人脸区域 PSNR</th><td>${metrics.faceRoiPsnr == null ? '—' : `${escapeHtml(Number(metrics.faceRoiPsnr).toFixed(4))} dB`}</td><th>人脸区域 SSIM</th><td>${metrics.faceRoiSsim == null ? '—' : escapeHtml(Number(metrics.faceRoiSsim).toFixed(6))}</td></tr>
+      <tr><th>人脸区域占比</th><td>${metrics.faceAreaRatio == null ? '—' : `${(metrics.faceAreaRatio * 100).toFixed(2)}%`}</td><th>处理后检测数</th><td>${escapeHtml(evaluation.detectedFacesAfter ?? '—')}</td></tr>
+      <tr><th>检测抑制率</th><td>${evaluation.detectionSuppressionRate == null ? '—' : `${(evaluation.detectionSuppressionRate * 100).toFixed(2)}%`}</td><th>文件留存</th><td>仅保存脱敏结果</td></tr></tbody></table>
       <h2>二、指标口径</h2><p class="note">PSNR 与 SSIM 用于衡量脱敏后的图像保真度；检测抑制率是基于固定人脸检测器的辅助对比指标，不等同于人脸识别准确率或隐私保护的充分证明。原始人脸图片仅在处理期间驻留内存，系统未将原图写入数据库。</p>
       ${traceRows ? `<h2>三、Agent 工具轨迹</h2><table class="trace"><thead><tr><th>步骤</th><th>工具</th><th>决策说明</th><th>观测结果</th></tr></thead><tbody>${traceRows}</tbody></table>` : ''}
       <div class="footer">本报告由人脸图像隐私脱敏与效果评估系统生成，适用于课程设计与实验记录。</div>
@@ -666,6 +671,11 @@ onUnmounted(stopPolling)
             <div><span>耗时</span><strong>{{ result.metrics.elapsedMs }} ms</strong></div>
             <div><span>检测抑制率</span><strong>{{ result.privacyEvaluation ? `${(result.privacyEvaluation.detectionSuppressionRate * 100).toFixed(1)}%` : '—' }}</strong></div>
           </div>
+          <div v-if="result.metrics.faceRoiPsnr != null" class="roi-metrics">
+            <div><span>人脸区域 PSNR</span><strong>{{ result.metrics.faceRoiPsnr.toFixed(2) }} dB</strong></div>
+            <div><span>人脸区域 SSIM</span><strong>{{ result.metrics.faceRoiSsim.toFixed(4) }}</strong></div>
+            <div><span>保护区域占比</span><strong>{{ (result.metrics.faceAreaRatio * 100).toFixed(2) }}%</strong></div>
+          </div>
           <p v-if="result.privacyEvaluation" class="privacy-note">检测器辅助指标：处理前 {{ result.faceCount }} 张，处理后 {{ result.privacyEvaluation.detectedFacesAfter }} 张。该指标用于对比实验，不等同于人脸识别准确率。</p>
           <div v-if="agentTrace.length" class="agent-trace">
             <div class="agent-trace-heading">
@@ -720,6 +730,9 @@ onUnmounted(stopPolling)
             <span><small>SSIM</small><strong>{{ task.metrics.ssim.toFixed(4) }}</strong></span>
             <span><small>耗时</small><strong>{{ task.metrics.elapsedMs }} ms</strong></span>
             <span><small>检测抑制</small><strong>{{ task.privacyEvaluation ? `${(task.privacyEvaluation.detectionSuppressionRate * 100).toFixed(1)}%` : '—' }}</strong></span>
+          </div>
+          <div v-if="task.metrics?.faceRoiPsnr != null" class="comparison-roi">
+            人脸区 SSIM <strong>{{ task.metrics.faceRoiSsim.toFixed(4) }}</strong> · 区域占比 <strong>{{ (task.metrics.faceAreaRatio * 100).toFixed(2) }}%</strong>
           </div>
         </article>
       </div>

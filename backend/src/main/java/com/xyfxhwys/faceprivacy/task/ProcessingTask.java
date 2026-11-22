@@ -45,6 +45,9 @@ public class ProcessingTask {
     private Double psnr;
     private Double ssim;
     private Double elapsedMs;
+    private Double faceRoiPsnr;
+    private Double faceRoiSsim;
+    private Double faceAreaRatio;
 
     private Integer detectedFacesAfter;
     private Double detectionSuppressionRate;
@@ -103,6 +106,9 @@ public class ProcessingTask {
             double psnr,
             double ssim,
             double elapsedMs,
+            Double faceRoiPsnr,
+            Double faceRoiSsim,
+            Double faceAreaRatio,
             String resultImageBase64,
             String appliedStrategy,
             String agentTrace,
@@ -114,6 +120,9 @@ public class ProcessingTask {
         this.psnr = psnr;
         this.ssim = ssim;
         this.elapsedMs = elapsedMs;
+        this.faceRoiPsnr = faceRoiPsnr;
+        this.faceRoiSsim = faceRoiSsim;
+        this.faceAreaRatio = faceAreaRatio;
         this.resultImageBase64 = resultImageBase64;
         this.appliedStrategy = appliedStrategy;
         this.agentTrace = agentTrace;
@@ -148,6 +157,9 @@ public class ProcessingTask {
     public Double getPsnr() { return psnr; }
     public Double getSsim() { return ssim; }
     public Double getElapsedMs() { return elapsedMs; }
+    public Double getFaceRoiPsnr() { return faceRoiPsnr; }
+    public Double getFaceRoiSsim() { return faceRoiSsim; }
+    public Double getFaceAreaRatio() { return faceAreaRatio; }
     public Integer getDetectedFacesAfter() { return detectedFacesAfter; }
     public Double getDetectionSuppressionRate() { return detectionSuppressionRate; }
     public String getResultImageBase64() { return resultImageBase64; }

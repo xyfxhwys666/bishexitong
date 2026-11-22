@@ -193,6 +193,39 @@ def ssim(image_a: np.ndarray, image_b: np.ndarray) -> float:
     return float(np.clip(score.mean(), -1.0, 1.0))
 
 
+def face_region_metrics(
+    original: np.ndarray,
+    processed: np.ndarray,
+    faces: list[FaceRegion],
+    privacy_level: str,
+) -> dict:
+    """Measure quality inside protected regions instead of only across the full image."""
+    if not faces:
+        return {"psnr": None, "ssim": None, "areaRatio": 0.0}
+
+    mask = np.zeros(original.shape[:2], dtype=np.uint8)
+    psnr_values: list[float] = []
+    ssim_values: list[float] = []
+    for face in faces:
+        x1, y1, x2, y2 = _expanded(face, original, privacy_level)
+        if x2 <= x1 or y2 <= y1:
+            continue
+        mask[y1:y2, x1:x2] = 255
+        original_roi = original[y1:y2, x1:x2]
+        processed_roi = processed[y1:y2, x1:x2]
+        psnr_value = float(cv2.PSNR(original_roi, processed_roi))
+        psnr_values.append(psnr_value if np.isfinite(psnr_value) else 99.0)
+        ssim_values.append(ssim(original_roi, processed_roi))
+
+    if not psnr_values:
+        return {"psnr": None, "ssim": None, "areaRatio": 0.0}
+    return {
+        "psnr": round(float(np.mean(psnr_values)), 4),
+        "ssim": round(float(np.mean(ssim_values)), 6),
+        "areaRatio": round(float(cv2.countNonZero(mask) / mask.size), 4),
+    }
+
+
 def _build_result(
     original: np.ndarray,
     processed: np.ndarray,
@@ -205,6 +238,7 @@ def _build_result(
 ) -> dict:
     faces_after = detect_faces(processed)
     suppression_rate = max(0.0, min(1.0, 1 - len(faces_after) / max(1, len(faces))))
+    roi_metrics = face_region_metrics(original, processed, faces, privacy_level)
     ok, encoded = cv2.imencode(".jpg", processed, [cv2.IMWRITE_JPEG_QUALITY, 92])
     if not ok:
         raise RuntimeError("failed to encode processed image")
@@ -219,6 +253,9 @@ def _build_result(
             "psnr": float(cv2.PSNR(original, processed)),
             "ssim": ssim(original, processed),
             "elapsedMs": round((time.perf_counter() - started) * 1000, 2),
+            "faceRoiPsnr": roi_metrics["psnr"],
+            "faceRoiSsim": roi_metrics["ssim"],
+            "faceAreaRatio": roi_metrics["areaRatio"],
         },
         "privacyEvaluation": {
             "detectedFacesBefore": len(faces),
