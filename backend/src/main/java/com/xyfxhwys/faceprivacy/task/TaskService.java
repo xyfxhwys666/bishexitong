@@ -4,7 +4,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xyfxhwys.faceprivacy.service.PythonImageService;
 import java.io.IOException;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -78,6 +80,43 @@ public class TaskService {
         return repository.findById(id)
                 .map(TaskView::from)
                 .orElseThrow(() -> new TaskNotFoundException(id));
+    }
+
+    public TaskStatistics statistics() {
+        List<ProcessingTask> tasks = repository.findAll();
+        long completed = tasks.stream().filter(task -> "COMPLETED".equals(task.getStatus())).count();
+        long processing = tasks.stream()
+                .filter(task -> "QUEUED".equals(task.getStatus()) || "PROCESSING".equals(task.getStatus()))
+                .count();
+        long failed = tasks.stream().filter(task -> "FAILED".equals(task.getStatus())).count();
+        long agentTasks = tasks.stream().filter(task -> "auto".equals(task.getStrategy())).count();
+        double averageSsim = average(tasks, true);
+        double averagePsnr = average(tasks, false);
+        Map<String, Long> strategyCounts = new LinkedHashMap<>();
+        tasks.stream()
+                .filter(task -> "COMPLETED".equals(task.getStatus()))
+                .map(ProcessingTask::getAppliedStrategy)
+                .forEach(strategy -> strategyCounts.merge(strategy, 1L, Long::sum));
+        return new TaskStatistics(
+                tasks.size(),
+                completed,
+                processing,
+                failed,
+                agentTasks,
+                averageSsim,
+                averagePsnr,
+                strategyCounts
+        );
+    }
+
+    private double average(List<ProcessingTask> tasks, boolean ssimMetric) {
+        return tasks.stream()
+                .filter(task -> "COMPLETED".equals(task.getStatus()))
+                .map(task -> ssimMetric ? task.getSsim() : task.getPsnr())
+                .filter(value -> value != null)
+                .mapToDouble(Double::doubleValue)
+                .average()
+                .orElse(0.0);
     }
 
     public ProcessingTask findEntity(long id) {

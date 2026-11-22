@@ -10,6 +10,16 @@ const error = ref('')
 const result = ref(null)
 const history = ref([])
 const historyLoading = ref(false)
+const statistics = ref({
+  total: 0,
+  completed: 0,
+  processing: 0,
+  failed: 0,
+  agentTasks: 0,
+  averageSsim: 0,
+  averagePsnr: 0,
+  strategyCounts: {},
+})
 const pollingIds = ref([])
 let pollingTimer = null
 
@@ -55,6 +65,12 @@ const agentTrace = computed(() => {
   }
 })
 
+const strategyUsage = computed(() => Object.entries(statistics.value.strategyCounts || {}).map(([key, value]) => ({
+  key,
+  label: labelForStrategy(key),
+  value,
+})))
+
 function onFileChange(event) {
   files.value = Array.from(event.target.files || []).slice(0, 20)
   error.value = ''
@@ -85,12 +101,23 @@ function formatObservation(value) {
   return typeof value === 'string' ? value : JSON.stringify(value)
 }
 
+async function loadStatistics() {
+  try {
+    const response = await fetch('/api/v1/tasks/stats')
+    if (!response.ok) throw new Error('统计数据加载失败')
+    statistics.value = await response.json()
+  } catch (err) {
+    error.value = err.message || '统计数据加载失败'
+  }
+}
+
 async function loadHistory() {
   historyLoading.value = true
   try {
     const response = await fetch('/api/v1/tasks')
     if (!response.ok) throw new Error('历史任务加载失败')
     history.value = await response.json()
+    await loadStatistics()
   } catch (err) {
     error.value = err.message || '历史任务加载失败'
   } finally {
@@ -213,16 +240,48 @@ onUnmounted(stopPolling)
   <main class="page-shell">
     <header class="topbar">
       <div>
-        <p class="eyebrow">FACE PRIVACY WORKBENCH</p>
+        <div class="brand-line">
+          <span class="brand-mark">FP</span>
+          <p class="eyebrow">FACE PRIVACY WORKBENCH</p>
+        </div>
         <h1>人脸图像隐私脱敏</h1>
-        <p class="subtitle">上传一张图片，先验证检测、局部处理与评价指标的完整链路。</p>
+        <p class="subtitle">从人脸检测到策略决策，再到效果评估的智能处理工作台。</p>
       </div>
-      <span class="status-chip"><i></i> 原型环境</span>
+      <span class="status-chip"><i></i> 答辩演示模式</span>
     </header>
+
+    <section class="overview-grid" aria-label="系统概览">
+      <div class="overview-card accent">
+        <span class="overview-label">累计任务</span>
+        <strong>{{ statistics.total }}</strong>
+        <small>已接收的处理任务</small>
+      </div>
+      <div class="overview-card">
+        <span class="overview-label">Agent 调度</span>
+        <strong>{{ statistics.agentTasks }}</strong>
+        <small>自动决策任务</small>
+      </div>
+      <div class="overview-card">
+        <span class="overview-label">平均 SSIM</span>
+        <strong>{{ statistics.averageSsim ? statistics.averageSsim.toFixed(4) : '—' }}</strong>
+        <small>图像结构保真度</small>
+      </div>
+      <div class="overview-card">
+        <span class="overview-label">任务状态</span>
+        <strong>{{ statistics.processing }}</strong>
+        <small>{{ statistics.failed ? `${statistics.failed} 个待复核失败任务` : '当前无失败任务' }}</small>
+      </div>
+    </section>
 
     <section class="workspace">
       <div class="control-panel">
-        <div class="section-label">处理配置</div>
+        <div class="panel-heading">
+          <div>
+            <div class="section-label">处理配置</div>
+            <h2>提交隐私任务</h2>
+          </div>
+          <span class="panel-index">01</span>
+        </div>
         <label class="upload-box" :class="{ selected: files.length }">
           <input type="file" accept="image/png,image/jpeg,image/webp" multiple @change="onFileChange" />
           <span class="upload-icon">↑</span>
@@ -269,10 +328,13 @@ onUnmounted(stopPolling)
       <div class="result-panel">
         <div class="result-heading">
           <div>
-            <div class="section-label">处理结果</div>
-          <h2>{{ result ? labelForStatus(result.status) : '等待提交图片' }}</h2>
+          <div class="section-label">处理结果</div>
+            <h2>{{ result ? labelForStatus(result.status) : '等待提交图片' }}</h2>
           </div>
-          <span v-if="result" class="result-badge">{{ result.status === 'COMPLETED' ? `${result.faceCount} 张人脸` : labelForPriority(result.priority) + '优先级' }}</span>
+          <div v-if="result" class="result-meta">
+            <span class="result-badge">{{ result.status === 'COMPLETED' ? `${result.faceCount} 张人脸` : labelForPriority(result.priority) + '优先级' }}</span>
+            <span v-if="result.strategy === 'auto'" class="agent-badge">Agent</span>
+          </div>
         </div>
 
         <div v-if="result?.status === 'COMPLETED'" class="result-content">
@@ -342,7 +404,15 @@ onUnmounted(stopPolling)
           <span class="history-arrow" aria-hidden="true">→</span>
         </button>
       </div>
-      <p v-else class="history-empty">完成第一张图片后，任务记录会保存在这里。</p>
+      <div v-if="strategyUsage.length" class="strategy-summary">
+        <span class="section-label">已完成策略分布</span>
+        <div class="strategy-pills">
+          <span v-for="item in strategyUsage" :key="item.key" class="strategy-pill">
+            <i :class="`strategy-dot ${item.key}`"></i>{{ item.label }} <strong>{{ item.value }}</strong>
+          </span>
+        </div>
+      </div>
+      <p v-if="!history.length" class="history-empty">完成第一张图片后，任务记录会保存在这里。</p>
     </section>
   </main>
 </template>

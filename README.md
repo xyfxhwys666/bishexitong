@@ -79,5 +79,6 @@ Agent 当前采用不依赖外部大模型的固定工具策略，便于本地�
 - `POST /api/v1/tasks`：提交单张异步任务，返回 `202` 和任务摘要
 - `POST /api/v1/tasks/batch`：提交最多 20 张图片的批量任务
 - `GET /api/v1/tasks`：查询最近任务摘要
+- `GET /api/v1/tasks/stats`：查询任务总览、平均指标和策略分布
 - `GET /api/v1/tasks/{id}`：查询任务状态、结果图和 Agent 轨迹
 - `POST /api/v1/tasks/{id}/retry`：重新提交失败任务

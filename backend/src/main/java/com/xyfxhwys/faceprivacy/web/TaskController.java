@@ -5,6 +5,7 @@ import com.xyfxhwys.faceprivacy.task.TaskSummary;
 import com.xyfxhwys.faceprivacy.task.BatchView;
 import com.xyfxhwys.faceprivacy.task.TaskQueueService;
 import com.xyfxhwys.faceprivacy.task.TaskView;
+import com.xyfxhwys.faceprivacy.task.TaskStatistics;
 import jakarta.validation.constraints.Pattern;
 import java.util.List;
 
@@ -64,6 +65,11 @@ public class TaskController {
     @GetMapping
     public List<TaskSummary> recent() {
         return taskService.recent();
+    }
+
+    @GetMapping("/stats")
+    public TaskStatistics statistics() {
+        return taskService.statistics();
     }
 
     @GetMapping("/{id}")
