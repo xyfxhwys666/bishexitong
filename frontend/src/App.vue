@@ -185,6 +185,16 @@ async function apiFetch(input, options = {}) {
   return response
 }
 
+async function readResponse(response) {
+  const text = await response.text()
+  if (!text) return {}
+  try {
+    return JSON.parse(text)
+  } catch {
+    return { message: text || `请求失败（HTTP ${response.status}）` }
+  }
+}
+
 async function login() {
   loginLoading.value = true
   loginError.value = ''
@@ -194,7 +204,7 @@ async function login() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(loginForm.value),
     })
-    const payload = await response.json()
+    const payload = await readResponse(response)
     if (!response.ok) throw new Error(payload.message || '登录失败')
     auth.value = { token: payload.token, ...payload.user }
     sessionStorage.setItem('facePrivacySession', JSON.stringify(auth.value))
@@ -216,7 +226,7 @@ async function initializeAuth() {
       headers: { Authorization: `Bearer ${session.token}` },
     })
     if (!response.ok) throw new Error('session expired')
-    const user = await response.json()
+    const user = await readResponse(response)
     auth.value = { token: session.token, ...user }
     await loadHistory()
     await loadAuditLogs()
@@ -239,7 +249,7 @@ async function loadStatistics() {
   try {
     const response = await apiFetch('/api/v1/tasks/stats')
     if (!response.ok) throw new Error('统计数据加载失败')
-    statistics.value = await response.json()
+    statistics.value = await readResponse(response)
   } catch (err) {
     error.value = err.message || '统计数据加载失败'
   }
@@ -250,7 +260,7 @@ async function loadHistory() {
   try {
     const response = await apiFetch('/api/v1/tasks')
     if (!response.ok) throw new Error('历史任务加载失败')
-    history.value = await response.json()
+    history.value = await readResponse(response)
     await loadStatistics()
   } catch (err) {
     error.value = err.message || '历史任务加载失败'
@@ -268,7 +278,7 @@ async function loadAuditLogs() {
   try {
     const response = await apiFetch('/api/v1/audit-logs')
     if (!response.ok) throw new Error('操作日志加载失败')
-    auditLogs.value = await response.json()
+    auditLogs.value = await readResponse(response)
   } catch (err) {
     error.value = err.message || '操作日志加载失败'
   } finally {
@@ -281,7 +291,7 @@ async function openHistory(task) {
   comparisonResults.value = []
   try {
     const response = await apiFetch(`/api/v1/tasks/${task.id}`)
-    const payload = await response.json()
+    const payload = await readResponse(response)
     if (!response.ok) throw new Error(payload.message || '任务详情加载失败')
     result.value = payload
     if (!['COMPLETED', 'FAILED'].includes(payload.status)) startPolling([payload.id])
@@ -304,7 +314,7 @@ async function pollTasks() {
     const tasks = await Promise.all(pollingIds.value.map(async (id) => {
       const response = await apiFetch(`/api/v1/tasks/${id}`)
       if (!response.ok) throw new Error('任务状态查询失败')
-      return response.json()
+      return readResponse(response)
     }))
     if (pollingMode.value === 'comparison') {
       comparisonResults.value = tasks
@@ -332,7 +342,7 @@ async function retryTask() {
   error.value = ''
   try {
     const response = await apiFetch(`/api/v1/tasks/${result.value.id}/retry`, { method: 'POST' })
-    const payload = await response.json()
+    const payload = await readResponse(response)
     if (!response.ok) throw new Error(payload.message || '重试提交失败')
     result.value = payload
     startPolling([payload.id])
@@ -363,7 +373,7 @@ async function compareStrategies() {
       form.append('privacyLevel', privacyLevel.value)
       form.append('priority', 'high')
       const response = await apiFetch('/api/v1/tasks', { method: 'POST', body: form })
-      const payload = await response.json()
+      const payload = await readResponse(response)
       if (!response.ok) throw new Error(payload.message || `${labelForStrategy(selectedStrategy)}提交失败`)
       return payload
     }))
@@ -475,7 +485,7 @@ async function processImage() {
   form.append('priority', priority.value)
   try {
     const response = await apiFetch(endpoint, { method: 'POST', body: form })
-    const payload = await response.json()
+    const payload = await readResponse(response)
     if (!response.ok) throw new Error(payload.detail || payload.message || '处理失败')
     const tasks = isBatch ? payload.tasks : [payload]
     result.value = tasks[0]
