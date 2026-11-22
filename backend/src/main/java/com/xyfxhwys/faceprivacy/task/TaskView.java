@@ -6,11 +6,15 @@ public record TaskView(
         Long id,
         String originalFilename,
         String strategy,
+        String appliedStrategy,
         String privacyLevel,
         String status,
+        String priority,
+        int attempt,
         Integer faceCount,
         Metrics metrics,
         String imageBase64,
+        String agentTrace,
         Instant createdAt,
         String errorMessage
 ) {
@@ -24,11 +28,15 @@ public record TaskView(
                 task.getId(),
                 task.getOriginalFilename(),
                 task.getStrategy(),
+                task.getAppliedStrategy(),
                 task.getPrivacyLevel(),
                 task.getStatus(),
+                task.getPriority(),
+                task.getAttempt(),
                 task.getFaceCount(),
                 metrics,
                 task.getResultImageBase64(),
+                task.getAgentTrace(),
                 task.getCreatedAt(),
                 task.getErrorMessage()
         );

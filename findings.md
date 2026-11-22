@@ -9,3 +9,7 @@
 - 不应一开始同时开发所有页面和模块；先跑通单张图片的端到端处理链路。
 - 本机已安装 Java 23、Maven 3.9.4、Node.js 22、Python 3.13 和 Docker 29.7.2。
 - Python 视觉依赖要先在虚拟环境中验证版本兼容，再确定 MediaPipe 的具体安装方案。
+- 2026-11-22：异步队列采用 Java `ThreadPoolExecutor` 和优先级阻塞队列，任务状态为 `QUEUED`、`PROCESSING`、`COMPLETED`、`FAILED`，单任务最多自动尝试 3 次。
+- 2026-11-22：异步任务的原图只保存在 Java 进程内存中，处理成功后清理；数据库不保存原始人脸，失败任务在进程存活期间保留原图以支持手动重试。
+- 2026-11-22：Agent 使用固定工具链实现可复现的受限 ReAct 流程：`detect_faces` -> `assess_quality` -> `choose_strategy` -> `apply_strategy` -> `evaluate_metrics`。策略范围和隐私等级由程序校验，Agent 不执行任意代码。
+- 2026-11-22：Agent 当前不依赖外部大模型和 API Key，优先保证演示稳定；后续可以在相同工具接口上增加 LangChain 模型适配器，并保留固定策略兜底。

@@ -21,24 +21,28 @@ public class PythonImageService {
 
     public String process(MultipartFile file, String strategy, String privacyLevel) {
         try {
-            var resource = new ByteArrayResource(file.getBytes()) {
-                @Override
-                public String getFilename() {
-                    return file.getOriginalFilename() == null ? "upload.jpg" : file.getOriginalFilename();
-                }
-            };
-            MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-            body.add("file", resource);
-            body.add("strategy", strategy);
-            body.add("privacy_level", privacyLevel);
-            return restClient.post()
-                    .uri("/api/v1/process")
-                    .contentType(MediaType.MULTIPART_FORM_DATA)
-                    .body(body)
-                    .retrieve()
-                    .body(String.class);
+            return process(file.getBytes(), file.getOriginalFilename(), strategy, privacyLevel);
         } catch (IOException ex) {
             throw new IllegalStateException("failed to read uploaded file", ex);
         }
+    }
+
+    public String process(byte[] bytes, String filename, String strategy, String privacyLevel) {
+        var resource = new ByteArrayResource(bytes) {
+            @Override
+            public String getFilename() {
+                return filename == null || filename.isBlank() ? "upload.jpg" : filename;
+            }
+        };
+        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+        body.add("file", resource);
+        body.add("strategy", strategy);
+        body.add("privacy_level", privacyLevel);
+        return restClient.post()
+                .uri("/api/v1/process")
+                .contentType(MediaType.MULTIPART_FORM_DATA)
+                .body(body)
+                .retrieve()
+                .body(String.class);
     }
 }

@@ -158,6 +158,23 @@ def apply_strategy(
     return output
 
 
+def assess_quality(image: np.ndarray) -> dict:
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    sharpness = float(cv2.Laplacian(gray, cv2.CV_64F).var())
+    brightness = float(gray.mean())
+    if sharpness < 80:
+        level = "low"
+    elif sharpness < 300:
+        level = "medium"
+    else:
+        level = "high"
+    return {
+        "sharpness": round(sharpness, 2),
+        "brightness": round(brightness, 2),
+        "level": level,
+    }
+
+
 def ssim(image_a: np.ndarray, image_b: np.ndarray) -> float:
     gray_a = cv2.cvtColor(image_a, cv2.COLOR_BGR2GRAY).astype(np.float64)
     gray_b = cv2.cvtColor(image_b, cv2.COLOR_BGR2GRAY).astype(np.float64)
@@ -176,8 +193,42 @@ def ssim(image_a: np.ndarray, image_b: np.ndarray) -> float:
     return float(np.clip(score.mean(), -1.0, 1.0))
 
 
+def _build_result(
+    original: np.ndarray,
+    processed: np.ndarray,
+    faces: list[FaceRegion],
+    requested_strategy: str,
+    selected_strategy: str,
+    privacy_level: str,
+    started: float,
+    agent_trace: list[dict] | None = None,
+) -> dict:
+    ok, encoded = cv2.imencode(".jpg", processed, [cv2.IMWRITE_JPEG_QUALITY, 92])
+    if not ok:
+        raise RuntimeError("failed to encode processed image")
+    return {
+        "requestedStrategy": requested_strategy,
+        "strategy": selected_strategy,
+        "privacyLevel": privacy_level,
+        "faceCount": len(faces),
+        "faces": [face.__dict__ for face in faces],
+        "quality": assess_quality(original),
+        "metrics": {
+            "psnr": float(cv2.PSNR(original, processed)),
+            "ssim": ssim(original, processed),
+            "elapsedMs": round((time.perf_counter() - started) * 1000, 2),
+        },
+        "agentTrace": agent_trace or [],
+        "imageBase64": base64.b64encode(encoded.tobytes()).decode("ascii"),
+    }
+
+
 def process_image(raw: bytes, strategy: str, privacy_level: str) -> dict:
     started = time.perf_counter()
+    if strategy == "auto":
+        from .agent import process_with_agent
+
+        return process_with_agent(raw, privacy_level, started)
     if strategy not in STRATEGIES:
         raise ValueError(f"unsupported strategy: {strategy}")
     if privacy_level not in PRIVACY_LEVELS:
@@ -187,18 +238,12 @@ def process_image(raw: bytes, strategy: str, privacy_level: str) -> dict:
     if not faces:
         raise ValueError("no face detected")
     processed = apply_strategy(original, faces, strategy, privacy_level)
-    ok, encoded = cv2.imencode(".jpg", processed, [cv2.IMWRITE_JPEG_QUALITY, 92])
-    if not ok:
-        raise RuntimeError("failed to encode processed image")
-    return {
-        "strategy": strategy,
-        "privacyLevel": privacy_level,
-        "faceCount": len(faces),
-        "faces": [face.__dict__ for face in faces],
-        "metrics": {
-            "psnr": float(cv2.PSNR(original, processed)),
-            "ssim": ssim(original, processed),
-            "elapsedMs": round((time.perf_counter() - started) * 1000, 2),
-        },
-        "imageBase64": base64.b64encode(encoded.tobytes()).decode("ascii"),
-    }
+    return _build_result(
+        original,
+        processed,
+        faces,
+        strategy,
+        strategy,
+        privacy_level,
+        started,
+    )

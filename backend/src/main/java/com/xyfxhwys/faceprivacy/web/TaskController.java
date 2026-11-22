@@ -2,11 +2,14 @@ package com.xyfxhwys.faceprivacy.web;
 
 import com.xyfxhwys.faceprivacy.task.TaskService;
 import com.xyfxhwys.faceprivacy.task.TaskSummary;
+import com.xyfxhwys.faceprivacy.task.BatchView;
+import com.xyfxhwys.faceprivacy.task.TaskQueueService;
 import com.xyfxhwys.faceprivacy.task.TaskView;
 import jakarta.validation.constraints.Pattern;
 import java.util.List;
 
 import org.springframework.http.MediaType;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,23 +26,39 @@ import org.springframework.web.multipart.MultipartFile;
 public class TaskController {
 
     private final TaskService taskService;
+    private final TaskQueueService taskQueueService;
 
-    public TaskController(TaskService taskService) {
+    public TaskController(TaskService taskService, TaskQueueService taskQueueService) {
         this.taskService = taskService;
+        this.taskQueueService = taskQueueService;
     }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<TaskView> create(
+    public ResponseEntity<TaskSummary> create(
             @RequestParam("file") MultipartFile file,
             @RequestParam(defaultValue = "mosaic")
-            @Pattern(regexp = "blur|mosaic|cover", message = "strategy must be blur, mosaic or cover") String strategy,
+            @Pattern(regexp = "auto|blur|mosaic|cover", message = "strategy must be auto, blur, mosaic or cover") String strategy,
             @RequestParam(name = "privacyLevel", defaultValue = "standard")
-            @Pattern(regexp = "light|standard|strict", message = "privacyLevel must be light, standard or strict") String privacyLevel
+            @Pattern(regexp = "light|standard|strict", message = "privacyLevel must be light, standard or strict") String privacyLevel,
+            @RequestParam(defaultValue = "normal")
+            @Pattern(regexp = "low|normal|high", message = "priority must be low, normal or high") String priority
     ) {
-        if (file.isEmpty()) {
-            throw new IllegalArgumentException("file is empty");
-        }
-        return ResponseEntity.ok(taskService.process(file, strategy, privacyLevel));
+        return ResponseEntity.status(HttpStatus.ACCEPTED)
+                .body(taskQueueService.submit(file, strategy, privacyLevel, priority));
+    }
+
+    @PostMapping(value = "/batch", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<BatchView> createBatch(
+            @RequestParam("files") List<MultipartFile> files,
+            @RequestParam(defaultValue = "mosaic")
+            @Pattern(regexp = "auto|blur|mosaic|cover", message = "strategy must be auto, blur, mosaic or cover") String strategy,
+            @RequestParam(name = "privacyLevel", defaultValue = "standard")
+            @Pattern(regexp = "light|standard|strict", message = "privacyLevel must be light, standard or strict") String privacyLevel,
+            @RequestParam(defaultValue = "normal")
+            @Pattern(regexp = "low|normal|high", message = "priority must be low, normal or high") String priority
+    ) {
+        return ResponseEntity.status(HttpStatus.ACCEPTED)
+                .body(taskQueueService.submitBatch(files, strategy, privacyLevel, priority));
     }
 
     @GetMapping
@@ -50,5 +69,10 @@ public class TaskController {
     @GetMapping("/{id}")
     public TaskView find(@PathVariable long id) {
         return taskService.find(id);
+    }
+
+    @PostMapping("/{id}/retry")
+    public ResponseEntity<TaskSummary> retry(@PathVariable long id) {
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(taskQueueService.retry(id));
     }
 }

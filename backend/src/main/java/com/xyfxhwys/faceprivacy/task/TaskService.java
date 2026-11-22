@@ -28,23 +28,45 @@ public class TaskService {
 
     public TaskView process(MultipartFile file, String strategy, String privacyLevel) {
         String filename = file.getOriginalFilename() == null ? "upload.jpg" : file.getOriginalFilename();
-        ProcessingTask task = repository.save(new ProcessingTask(filename, strategy, privacyLevel));
+        ProcessingTask task = repository.save(new ProcessingTask(filename, strategy, privacyLevel, "normal"));
         try {
-            JsonNode result = objectMapper.readTree(pythonImageService.process(file, strategy, privacyLevel));
-            JsonNode metrics = result.path("metrics");
-            task.complete(
-                    result.path("faceCount").asInt(),
-                    metrics.path("psnr").asDouble(),
-                    metrics.path("ssim").asDouble(),
-                    metrics.path("elapsedMs").asDouble(),
-                    result.path("imageBase64").asText()
-            );
+            task.markProcessing();
+            execute(task, file.getBytes());
             return TaskView.from(repository.save(task));
         } catch (Exception ex) {
             String message = userMessage(ex);
             task.fail(message);
             repository.save(task);
             throw new TaskProcessingException(task.getId(), message, ex);
+        }
+    }
+
+    public ProcessingTask createQueued(String filename, String strategy, String privacyLevel, String priority) {
+        return repository.save(new ProcessingTask(filename, strategy, privacyLevel, priority));
+    }
+
+    public void execute(ProcessingTask task, byte[] rawImage) {
+        try {
+            JsonNode result = objectMapper.readTree(
+                    pythonImageService.process(rawImage, task.getOriginalFilename(), task.getStrategy(), task.getPrivacyLevel())
+            );
+            JsonNode metrics = result.path("metrics");
+            String appliedStrategy = result.path("strategy").asText(task.getStrategy());
+            String agentTrace = result.has("agentTrace")
+                    ? objectMapper.writeValueAsString(result.path("agentTrace"))
+                    : null;
+            task.complete(
+                    result.path("faceCount").asInt(),
+                    metrics.path("psnr").asDouble(),
+                    metrics.path("ssim").asDouble(),
+                    metrics.path("elapsedMs").asDouble(),
+                    result.path("imageBase64").asText(),
+                    appliedStrategy,
+                    agentTrace
+            );
+            repository.save(task);
+        } catch (Exception ex) {
+            throw new TaskRunException(userMessage(ex), ex);
         }
     }
 
@@ -56,6 +78,15 @@ public class TaskService {
         return repository.findById(id)
                 .map(TaskView::from)
                 .orElseThrow(() -> new TaskNotFoundException(id));
+    }
+
+    public ProcessingTask findEntity(long id) {
+        return repository.findById(id)
+                .orElseThrow(() -> new TaskNotFoundException(id));
+    }
+
+    public ProcessingTask save(ProcessingTask task) {
+        return repository.save(task);
     }
 
     private String userMessage(Exception ex) {

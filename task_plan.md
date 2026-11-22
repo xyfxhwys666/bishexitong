@@ -42,11 +42,13 @@ Status: completed
 
 ### Phase 3: Agent 与任务系统
 
-Status: pending
+Status: completed
 
 - 将检测、脱敏和评价封装为结构化工具
 - 接入受限的 ReAct Agent，记录工具调用轨迹
 - 增加异步任务、批量处理、超时、重试和固定规则兜底
+
+已完成：异步单任务、批量提交、优先级队列、状态查询、失败重试和受限 ReAct 工具编排。
 
 ### Phase 4: Web 功能完善
 
@@ -66,7 +68,7 @@ Status: pending
 
 ## Next Step
 
-增加受限异步任务队列和批量上传接口，先保证失败任务可追踪、可重试，再接入 Agent 工具调用轨迹。
+进入 Web 功能完善阶段，增加基础登录、统计接口和管理员看板，同时保持现有任务链路可独立运行。
 
 ## Errors Encountered
 

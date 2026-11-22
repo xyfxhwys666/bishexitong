@@ -17,6 +17,7 @@ __pycache__/
 runtime-data/
 backend/data/
 response*.json
+retry-response.json
 backend-response.json
 .env
 *.local.yml

@@ -27,7 +27,7 @@ public class ProcessController {
     public ResponseEntity<TaskView> process(
             @RequestParam("file") MultipartFile file,
             @RequestParam(defaultValue = "mosaic")
-            @Pattern(regexp = "blur|mosaic|cover", message = "strategy must be blur, mosaic or cover") String strategy,
+            @Pattern(regexp = "auto|blur|mosaic|cover", message = "strategy must be auto, blur, mosaic or cover") String strategy,
             @RequestParam(name = "privacyLevel", defaultValue = "standard")
             @Pattern(regexp = "light|standard|strict", message = "privacyLevel must be light, standard or strict") String privacyLevel
     ) {

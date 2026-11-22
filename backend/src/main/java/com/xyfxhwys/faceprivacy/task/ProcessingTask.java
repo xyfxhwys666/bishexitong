@@ -24,11 +24,19 @@ public class ProcessingTask {
     @Column(nullable = false, length = 20)
     private String strategy;
 
+    @Column(length = 20)
+    private String appliedStrategy;
+
     @Column(nullable = false, length = 20)
     private String privacyLevel;
 
     @Column(nullable = false, length = 20)
     private String status;
+
+    @Column(length = 20)
+    private String priority;
+
+    private Integer attempt;
 
     private Integer faceCount;
     private Double psnr;
@@ -38,6 +46,10 @@ public class ProcessingTask {
     @Lob
     @Column(columnDefinition = "CLOB")
     private String resultImageBase64;
+
+    @Lob
+    @Column(columnDefinition = "CLOB")
+    private String agentTrace;
 
     @Column(length = 1000)
     private String errorMessage;
@@ -51,22 +63,41 @@ public class ProcessingTask {
     protected ProcessingTask() {
     }
 
-    public ProcessingTask(String originalFilename, String strategy, String privacyLevel) {
+    public ProcessingTask(String originalFilename, String strategy, String privacyLevel, String priority) {
         this.originalFilename = originalFilename;
         this.strategy = strategy;
+        this.appliedStrategy = "auto".equals(strategy) ? null : strategy;
         this.privacyLevel = privacyLevel;
-        this.status = "PROCESSING";
+        this.status = "QUEUED";
+        this.priority = priority;
+        this.attempt = 0;
         this.createdAt = Instant.now();
         this.updatedAt = this.createdAt;
     }
 
-    public void complete(int faceCount, double psnr, double ssim, double elapsedMs, String resultImageBase64) {
+    public void markProcessing() {
+        this.status = "PROCESSING";
+        this.attempt = getAttempt() + 1;
+        this.updatedAt = Instant.now();
+    }
+
+    public void complete(
+            int faceCount,
+            double psnr,
+            double ssim,
+            double elapsedMs,
+            String resultImageBase64,
+            String appliedStrategy,
+            String agentTrace
+    ) {
         this.status = "COMPLETED";
         this.faceCount = faceCount;
         this.psnr = psnr;
         this.ssim = ssim;
         this.elapsedMs = elapsedMs;
         this.resultImageBase64 = resultImageBase64;
+        this.appliedStrategy = appliedStrategy;
+        this.agentTrace = agentTrace;
         this.errorMessage = null;
         this.updatedAt = Instant.now();
     }
@@ -77,16 +108,26 @@ public class ProcessingTask {
         this.updatedAt = Instant.now();
     }
 
+    public void queueForRetry(String errorMessage) {
+        this.status = "QUEUED";
+        this.errorMessage = errorMessage;
+        this.updatedAt = Instant.now();
+    }
+
     public Long getId() { return id; }
     public String getOriginalFilename() { return originalFilename; }
     public String getStrategy() { return strategy; }
+    public String getAppliedStrategy() { return appliedStrategy == null ? strategy : appliedStrategy; }
     public String getPrivacyLevel() { return privacyLevel; }
     public String getStatus() { return status; }
+    public String getPriority() { return priority == null ? "normal" : priority; }
+    public int getAttempt() { return attempt == null ? 0 : attempt; }
     public Integer getFaceCount() { return faceCount; }
     public Double getPsnr() { return psnr; }
     public Double getSsim() { return ssim; }
     public Double getElapsedMs() { return elapsedMs; }
     public String getResultImageBase64() { return resultImageBase64; }
+    public String getAgentTrace() { return agentTrace; }
     public String getErrorMessage() { return errorMessage; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
