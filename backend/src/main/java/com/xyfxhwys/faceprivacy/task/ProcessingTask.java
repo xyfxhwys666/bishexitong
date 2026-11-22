@@ -43,6 +43,9 @@ public class ProcessingTask {
     private Double ssim;
     private Double elapsedMs;
 
+    private Integer detectedFacesAfter;
+    private Double detectionSuppressionRate;
+
     @Lob
     @Column(columnDefinition = "CLOB")
     private String resultImageBase64;
@@ -88,7 +91,9 @@ public class ProcessingTask {
             double elapsedMs,
             String resultImageBase64,
             String appliedStrategy,
-            String agentTrace
+            String agentTrace,
+            int detectedFacesAfter,
+            double detectionSuppressionRate
     ) {
         this.status = "COMPLETED";
         this.faceCount = faceCount;
@@ -98,6 +103,8 @@ public class ProcessingTask {
         this.resultImageBase64 = resultImageBase64;
         this.appliedStrategy = appliedStrategy;
         this.agentTrace = agentTrace;
+        this.detectedFacesAfter = detectedFacesAfter;
+        this.detectionSuppressionRate = detectionSuppressionRate;
         this.errorMessage = null;
         this.updatedAt = Instant.now();
     }
@@ -126,6 +133,8 @@ public class ProcessingTask {
     public Double getPsnr() { return psnr; }
     public Double getSsim() { return ssim; }
     public Double getElapsedMs() { return elapsedMs; }
+    public Integer getDetectedFacesAfter() { return detectedFacesAfter; }
+    public Double getDetectionSuppressionRate() { return detectionSuppressionRate; }
     public String getResultImageBase64() { return resultImageBase64; }
     public String getAgentTrace() { return agentTrace; }
     public String getErrorMessage() { return errorMessage; }

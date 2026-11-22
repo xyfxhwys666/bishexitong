@@ -13,6 +13,7 @@ public record TaskSummary(
         int attempt,
         Integer faceCount,
         TaskView.Metrics metrics,
+        TaskView.PrivacyEvaluation privacyEvaluation,
         Instant createdAt,
         String errorMessage
 ) {
@@ -29,6 +30,7 @@ public record TaskSummary(
                 view.attempt(),
                 view.faceCount(),
                 view.metrics(),
+                view.privacyEvaluation(),
                 view.createdAt(),
                 view.errorMessage()
         );

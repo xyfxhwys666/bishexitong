@@ -203,6 +203,8 @@ def _build_result(
     started: float,
     agent_trace: list[dict] | None = None,
 ) -> dict:
+    faces_after = detect_faces(processed)
+    suppression_rate = max(0.0, min(1.0, 1 - len(faces_after) / max(1, len(faces))))
     ok, encoded = cv2.imencode(".jpg", processed, [cv2.IMWRITE_JPEG_QUALITY, 92])
     if not ok:
         raise RuntimeError("failed to encode processed image")
@@ -217,6 +219,13 @@ def _build_result(
             "psnr": float(cv2.PSNR(original, processed)),
             "ssim": ssim(original, processed),
             "elapsedMs": round((time.perf_counter() - started) * 1000, 2),
+        },
+        "privacyEvaluation": {
+            "detectedFacesBefore": len(faces),
+            "detectedFacesAfter": len(faces_after),
+            "detectionSuppressionRate": round(suppression_rate, 4),
+            "isProxyMetric": True,
+            "note": "基于固定人脸检测器的辅助指标，不等同于人脸识别准确率",
         },
         "agentTrace": agent_trace or [],
         "imageBase64": base64.b64encode(encoded.tobytes()).decode("ascii"),

@@ -57,6 +57,7 @@ public class TaskService {
             String agentTrace = result.has("agentTrace")
                     ? objectMapper.writeValueAsString(result.path("agentTrace"))
                     : null;
+            JsonNode privacyEvaluation = result.path("privacyEvaluation");
             task.complete(
                     result.path("faceCount").asInt(),
                     metrics.path("psnr").asDouble(),
@@ -64,7 +65,9 @@ public class TaskService {
                     metrics.path("elapsedMs").asDouble(),
                     result.path("imageBase64").asText(),
                     appliedStrategy,
-                    agentTrace
+                    agentTrace,
+                    privacyEvaluation.path("detectedFacesAfter").asInt(),
+                    privacyEvaluation.path("detectionSuppressionRate").asDouble()
             );
             repository.save(task);
         } catch (Exception ex) {
